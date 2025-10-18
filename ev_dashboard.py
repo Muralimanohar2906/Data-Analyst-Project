@@ -11,7 +11,7 @@ import numpy as np
 # ====================================================
 df_date = pd.read_csv("dim_date.csv")
 df_state = pd.read_csv("electric_vehicle_sales_by_state.csv")
-df_makers = pd.read_csv("electric_vehicle_sales_by_makers.csv")  # Keep this CSV
+df_makers = pd.read_csv("electric_vehicle_sales_by_makers.csv")  # Keep CSV
 
 # Convert date columns
 df_date["date"] = pd.to_datetime(df_date["date"], format="mixed")
@@ -114,7 +114,7 @@ with st.sidebar.expander("🔍 Filter Options", expanded=True):
     state_selected = st.selectbox(
         "Select State", ["All"] + sorted(df_state["state"].dropna().unique())
     )
-    # Maker filter removed from sidebar
+    # Maker filter removed
 
 # Apply Filters
 data_for_charts = apply_filters(
@@ -127,7 +127,7 @@ data_for_charts = apply_filters(
 )
 
 # ====================================================
-# SCALE DOWN VEHICLE SOLD FOR CHARTS
+# SCALE DOWN VEHICLE SOLD
 # ====================================================
 SCALE_FACTOR = 1000  # Show numbers in thousands
 data_for_charts["electric_vehicles_sold_scaled"] = (
@@ -196,7 +196,7 @@ with tab1:
     st.title("Welcome to Murali's EV Analysis")
     st.markdown("### Explore EV adoption across India with interactive visualizations")
 
-    # Map with UTs included
+    # Map
     states = data_for_charts.groupby("state", as_index=False).agg(
         {"electric_vehicles_sold": "sum", "total_vehicles_sold": "sum"}
     )
@@ -254,7 +254,6 @@ with tab2:
     st.markdown("### EV Sales by Year (Split by States in Selected Regions)")
 
     if regions_selected:
-        # Show sales split by state for the selected regions
         df_compare = data_for_charts.groupby(
             ["fiscal_year", "state"], as_index=False
         ).agg({"electric_vehicles_sold_scaled": "sum"})
@@ -282,7 +281,7 @@ with tab2:
         )
     st.plotly_chart(fig_comparison, use_container_width=True)
 
-    # EV Penetration chart based on filtered data
+    # EV Penetration chart
     st.markdown("### EV Penetration by State")
     df_pen = data_for_charts.groupby("state", as_index=False).agg(
         {"electric_vehicles_sold_scaled": "sum", "total_vehicles_sold_scaled": "sum"}
@@ -294,16 +293,223 @@ with tab2:
         df_pen,
         x="state",
         y="ev_penetration",
-        title=f"EV Penetration (%) by State",
+        title="EV Penetration (%) by State",
         color="ev_penetration",
         color_continuous_scale="Viridis",
     )
     st.plotly_chart(fig_pen, use_container_width=True)
 
 # ====================================================
-# TREND, REGIONAL INSIGHTS, FORECASTING TABS
+# TRENDS TAB
 # ====================================================
-# (Use same logic as before, making sure to use df_makers internally for maker-specific charts)
+with tab3:
+    st.header("EV Trends Over Time")
+
+    # Historical EV sales (state-based)
+    df_trend = (
+        data_for_charts.groupby("fiscal_year")
+        .agg({"electric_vehicles_sold_scaled": "sum"})
+        .reset_index()
+    )
+    if len(df_trend) >= 2:
+        X = df_trend["fiscal_year"].values.reshape(-1, 1)
+        y = df_trend["electric_vehicles_sold_scaled"].values
+        model = LinearRegression()
+        model.fit(X, y)
+        df_trend["predicted_sales"] = model.predict(X)
+        future_years = np.array(
+            [df_trend["fiscal_year"].max() + i for i in range(1, 4)]
+        ).reshape(-1, 1)
+        y_pred_future = model.predict(future_years)
+    else:
+        df_trend["predicted_sales"] = df_trend["electric_vehicles_sold_scaled"]
+        future_years = np.array([])
+        y_pred_future = np.array([])
+
+    # EV Trend + Forecast Plot
+    fig_trend = go.Figure()
+    fig_trend.add_trace(
+        go.Scatter(
+            x=df_trend["fiscal_year"],
+            y=df_trend["electric_vehicles_sold_scaled"],
+            mode="lines+markers",
+            name="Historical EV Sales",
+            line=dict(color="#2E86AB", width=3),
+        )
+    )
+    fig_trend.add_trace(
+        go.Scatter(
+            x=df_trend["fiscal_year"],
+            y=df_trend["predicted_sales"],
+            mode="lines",
+            name="Linear Regression Trend",
+            line=dict(color="red", dash="dash", width=3),
+        )
+    )
+    if len(future_years) > 0:
+        fig_trend.add_trace(
+            go.Scatter(
+                x=future_years.flatten(),
+                y=y_pred_future,
+                mode="lines+markers",
+                name="3-Year Forecast",
+                line=dict(color="green", dash="dot", width=3),
+                marker=dict(symbol="diamond", size=8),
+            )
+        )
+    fig_trend.update_layout(
+        title="EV Sales Trend with Regression & 3-Year Forecast",
+        xaxis_title="Fiscal Year",
+        yaxis_title="EVs Sold (K)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+        legend_title="Trend Type",
+    )
+    st.plotly_chart(fig_trend, use_container_width=True)
+
+    # EV vs Non-EV comparison
+    if "total_vehicles_sold_scaled" in data_for_charts.columns:
+        df_compare = (
+            data_for_charts.groupby("fiscal_year")
+            .agg({"electric_vehicles_sold_scaled": "sum", "non_ev_scaled": "sum"})
+            .reset_index()
+        )
+        df_compare_long = df_compare.melt(
+            id_vars="fiscal_year",
+            value_vars=["electric_vehicles_sold_scaled", "non_ev_scaled"],
+            var_name="Type",
+            value_name="Vehicles Sold",
+        )
+        df_compare_long["Type"] = df_compare_long["Type"].map(
+            {"electric_vehicles_sold_scaled": "EV", "non_ev_scaled": "Non-EV"}
+        )
+        fig_compare = px.line(
+            df_compare_long,
+            x="fiscal_year",
+            y="Vehicles Sold",
+            color="Type",
+            markers=True,
+            title="EV vs Non-EV Sales Trend Over Time",
+            color_discrete_map={"EV": "#1F77B4", "Non-EV": "#FF7F0E"},
+        )
+        fig_compare.update_layout(
+            xaxis_title="Fiscal Year",
+            yaxis_title="Vehicles Sold (K)",
+            legend_title="Vehicle Type",
+            plot_bgcolor="rgba(0,0,0,0)",
+            paper_bgcolor="rgba(0,0,0,0)",
+        )
+        st.plotly_chart(fig_compare, use_container_width=True)
+
+    # Maker-wise Trend Chart
+    st.markdown("### Maker-wise EV Sales Trend")
+    df_maker_filtered = df_makers.copy()
+    if years_selected:
+        df_maker_filtered = df_maker_filtered[
+            df_maker_filtered["fiscal_year"].isin(years_selected)
+        ]
+    if vehicle_category != "All":
+        df_maker_filtered = df_maker_filtered[
+            df_maker_filtered["vehicle_category"] == vehicle_category
+        ]
+    df_maker_trend = df_maker_filtered.groupby(
+        ["fiscal_year", "maker"], as_index=False
+    ).agg({"electric_vehicles_sold": "sum"})
+    df_maker_trend["electric_vehicles_sold_scaled"] = (
+        df_maker_trend["electric_vehicles_sold"] / SCALE_FACTOR
+    )
+    fig_maker = px.line(
+        df_maker_trend,
+        x="fiscal_year",
+        y="electric_vehicles_sold_scaled",
+        color="maker",
+        markers=True,
+        title="Maker-wise EV Sales Trend",
+        labels={
+            "electric_vehicles_sold_scaled": "EVs Sold (K)",
+            "fiscal_year": "Fiscal Year",
+        },
+    )
+    fig_maker.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
+    st.plotly_chart(fig_maker, use_container_width=True)
+
+# ====================================================
+# REGIONAL INSIGHTS TAB
+# ====================================================
+with tab4:
+    st.header("EV Adoption by Region")
+    if regions_selected:
+        df_region = (
+            data_for_charts.groupby("state")
+            .agg({"electric_vehicles_sold_scaled": "sum", "non_ev_scaled": "sum"})
+            .reset_index()
+        )
+        df_region["region"] = df_region["state"].apply(
+            lambda x: next(
+                (r for r, states in region_map.items() if x in states),
+                "Union Territories",
+            )
+        )
+        df_region_summary = df_region.groupby("region").sum().reset_index()
+        fig_region = px.bar(
+            df_region_summary,
+            x="region",
+            y=["electric_vehicles_sold_scaled", "non_ev_scaled"],
+            barmode="stack",
+            title="EV vs Non-EV Sales by Region",
+        )
+        st.plotly_chart(fig_region, use_container_width=True)
+    else:
+        st.info("Select at least one region to see regional insights.")
+
+# ====================================================
+# FORECASTING TAB
+# ====================================================
+with tab5:
+    st.header("EV Forecasting")
+    st.markdown("Forecasting future EV sales using Linear Regression")
+    df_forecast = (
+        data_for_charts.groupby("fiscal_year")
+        .agg({"electric_vehicles_sold_scaled": "sum"})
+        .reset_index()
+    )
+    if len(df_forecast) >= 2:
+        X = df_forecast["fiscal_year"].values.reshape(-1, 1)
+        y = df_forecast["electric_vehicles_sold_scaled"].values
+        model = LinearRegression()
+        model.fit(X, y)
+        future_years = np.array(
+            [df_forecast["fiscal_year"].max() + i for i in range(1, 6)]
+        ).reshape(-1, 1)
+        y_pred_future = model.predict(future_years)
+        fig_forecast = go.Figure()
+        fig_forecast.add_trace(
+            go.Scatter(
+                x=df_forecast["fiscal_year"],
+                y=df_forecast["electric_vehicles_sold_scaled"],
+                mode="lines+markers",
+                name="Historical Sales",
+            )
+        )
+        fig_forecast.add_trace(
+            go.Scatter(
+                x=future_years.flatten(),
+                y=y_pred_future,
+                mode="lines+markers",
+                name="Forecasted Sales",
+                line=dict(color="green", dash="dot"),
+            )
+        )
+        fig_forecast.update_layout(
+            title="EV Sales Forecast (Next 5 Years)",
+            xaxis_title="Fiscal Year",
+            yaxis_title="EVs Sold (K)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            paper_bgcolor="rgba(0,0,0,0)",
+        )
+        st.plotly_chart(fig_forecast, use_container_width=True)
+    else:
+        st.warning("Not enough data for forecasting.")
 
 st.markdown("---")
 st.markdown("**Dashboard powered by Streamlit, Plotly & Linear Regression**")
