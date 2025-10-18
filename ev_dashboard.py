@@ -193,8 +193,7 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs(
 # HOME TAB
 # ====================================================
 with tab1:
-    st.title("Welcome to Murali's EV Analysis")
-    st.markdown("### Explore EV adoption across India with interactive visualizations")
+    st.title("Welcome to Murali's EV Analysis with interactive visualizations")
 
     # Map
     states = data_for_charts.groupby("state", as_index=False).agg(
