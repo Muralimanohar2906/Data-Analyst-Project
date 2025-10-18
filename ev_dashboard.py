@@ -477,9 +477,7 @@ with tab4:
         )
         st.plotly_chart(fig_region, use_container_width=True)
 
-# ====================================================
 # FORECASTING TAB USING LINEAR REGRESSION
-# ====================================================
 with tab5:
     st.header("Forecasting Next 3 Years EV Sales (Linear Regression)")
     df_lr = (
