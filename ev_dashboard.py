@@ -11,13 +11,16 @@ import numpy as np
 # ====================================================
 df_date = pd.read_csv("dim_date.csv")
 df_state = pd.read_csv("electric_vehicle_sales_by_state.csv")
+df_makers = pd.read_csv("electric_vehicle_sales_by_makers.csv")  # Keep this CSV
 
 # Convert date columns
 df_date["date"] = pd.to_datetime(df_date["date"], format="mixed")
 df_state["date"] = pd.to_datetime(df_state["date"], format="mixed")
+df_makers["date"] = pd.to_datetime(df_makers["date"], format="mixed")
 
 # Merge fiscal info
 df_state = pd.merge(df_state, df_date, on="date", how="left")
+df_makers = pd.merge(df_makers, df_date, on="date", how="left")
 
 # ====================================================
 # Region Mapping
@@ -111,6 +114,7 @@ with st.sidebar.expander("🔍 Filter Options", expanded=True):
     state_selected = st.selectbox(
         "Select State", ["All"] + sorted(df_state["state"].dropna().unique())
     )
+    # Maker filter removed from sidebar
 
 # Apply Filters
 data_for_charts = apply_filters(
@@ -247,37 +251,41 @@ with tab2:
     col2.metric("Estimated Revenue", formatted_revenue)
     col3.metric("CAGR", f"{cagr:.2f}%")
 
-    st.markdown("### EV Sales by Year")
-    df_comparison = (
-        data_for_charts.groupby("fiscal_year")
-        .agg({"electric_vehicles_sold_scaled": "sum"})
-        .reset_index()
-    )
-    fig_comparison = px.bar(
-        df_comparison,
-        x="fiscal_year",
-        y="electric_vehicles_sold_scaled",
-        title="EV Sales by Year (in K)",
-        color="fiscal_year",
-        color_continuous_scale="Tealgrn",
-    )
+    st.markdown("### EV Sales by Year (Split by States in Selected Regions)")
+
+    if regions_selected:
+        # Show sales split by state for the selected regions
+        df_compare = data_for_charts.groupby(
+            ["fiscal_year", "state"], as_index=False
+        ).agg({"electric_vehicles_sold_scaled": "sum"})
+        fig_comparison = px.bar(
+            df_compare,
+            x="fiscal_year",
+            y="electric_vehicles_sold_scaled",
+            color="state",
+            barmode="group",
+            title="EV Sales by Year (States in Selected Regions)",
+        )
+    else:
+        df_compare = (
+            data_for_charts.groupby("fiscal_year")
+            .agg({"electric_vehicles_sold_scaled": "sum"})
+            .reset_index()
+        )
+        fig_comparison = px.bar(
+            df_compare,
+            x="fiscal_year",
+            y="electric_vehicles_sold_scaled",
+            color="fiscal_year",
+            title="EV Sales by Year",
+            color_continuous_scale="Tealgrn",
+        )
     st.plotly_chart(fig_comparison, use_container_width=True)
 
-    # --- EV Penetration Chart with Year Selection ---
+    # EV Penetration chart based on filtered data
     st.markdown("### EV Penetration by State")
-    penetration_year = st.selectbox(
-        "Select Fiscal Year for Penetration Chart",
-        sorted(data_for_charts["fiscal_year"].unique()),
-    )
-    df_pen = (
-        data_for_charts[data_for_charts["fiscal_year"] == penetration_year]
-        .groupby("state", as_index=False)
-        .agg(
-            {
-                "electric_vehicles_sold_scaled": "sum",
-                "total_vehicles_sold_scaled": "sum",
-            }
-        )
+    df_pen = data_for_charts.groupby("state", as_index=False).agg(
+        {"electric_vehicles_sold_scaled": "sum", "total_vehicles_sold_scaled": "sum"}
     )
     df_pen["ev_penetration"] = (
         df_pen["electric_vehicles_sold_scaled"] / df_pen["total_vehicles_sold_scaled"]
@@ -286,10 +294,16 @@ with tab2:
         df_pen,
         x="state",
         y="ev_penetration",
-        title=f"EV Penetration (%) by State - {penetration_year}",
+        title=f"EV Penetration (%) by State",
         color="ev_penetration",
         color_continuous_scale="Viridis",
     )
     st.plotly_chart(fig_pen, use_container_width=True)
 
-# (Remaining tabs: Trends, Regional Insights, Forecasting remain unchanged)
+# ====================================================
+# TREND, REGIONAL INSIGHTS, FORECASTING TABS
+# ====================================================
+# (Use same logic as before, making sure to use df_makers internally for maker-specific charts)
+
+st.markdown("---")
+st.markdown("**Dashboard powered by Streamlit, Plotly & Linear Regression**")
