@@ -330,29 +330,83 @@ with tab2:
         st.plotly_chart(fig_pen, use_container_width=True)
 
 # ====================================================
-# TRENDS TAB
+# TRENDS TAB (Historical + Regression + 3-Year Forecast)
 # ====================================================
 with tab3:
     st.header("EV Trends Over Time")
 
+    # Historical sales
     df_trend = (
         data_for_charts.groupby("fiscal_year")
         .agg({"electric_vehicles_sold_scaled": "sum"})
         .reset_index()
     )
-    fig_trend = px.line(
-        df_trend,
-        x="fiscal_year",
-        y="electric_vehicles_sold_scaled",
-        markers=True,
-        title="EV Sales Trend Over Time (in K)",
-        color_discrete_sequence=["#2E86AB"],
+
+    if len(df_trend) >= 2:
+        # Linear Regression on historical data
+        X = df_trend["fiscal_year"].values.reshape(-1, 1)
+        y = df_trend["electric_vehicles_sold_scaled"].values
+        model = LinearRegression()
+        model.fit(X, y)
+
+        # Predicted trend (for historical years)
+        df_trend["predicted_sales"] = model.predict(X)
+
+        # Forecast next 3 years
+        future_years = np.array(
+            [df_trend["fiscal_year"].max() + i for i in range(1, 4)]
+        ).reshape(-1, 1)
+        y_pred_future = model.predict(future_years)
+    else:
+        df_trend["predicted_sales"] = df_trend["electric_vehicles_sold_scaled"]
+        future_years = np.array([])
+        y_pred_future = np.array([])
+
+    # Plot all in one chart
+    fig_trend = go.Figure()
+
+    # Historical EV sales
+    fig_trend.add_trace(
+        go.Scatter(
+            x=df_trend["fiscal_year"],
+            y=df_trend["electric_vehicles_sold_scaled"],
+            mode="lines+markers",
+            name="Historical EV Sales",
+            line=dict(color="#2E86AB", width=3),
+        )
     )
+
+    # Regression trend (over historical years)
+    fig_trend.add_trace(
+        go.Scatter(
+            x=df_trend["fiscal_year"],
+            y=df_trend["predicted_sales"],
+            mode="lines",
+            name="Linear Regression Trend",
+            line=dict(color="red", dash="dash", width=3),
+        )
+    )
+
+    # Forecast for next 3 years
+    if len(future_years) > 0:
+        fig_trend.add_trace(
+            go.Scatter(
+                x=future_years.flatten(),
+                y=y_pred_future,
+                mode="lines+markers",
+                name="3-Year Forecast",
+                line=dict(color="green", dash="dot", width=3),
+                marker=dict(symbol="diamond", size=8),
+            )
+        )
+
     fig_trend.update_layout(
+        title="EV Sales Trend with Regression & 3-Year Forecast",
         xaxis_title="Fiscal Year",
         yaxis_title="EVs Sold (in K)",
         plot_bgcolor="rgba(0,0,0,0)",
         paper_bgcolor="rgba(0,0,0,0)",
+        legend_title="Trend Type",
     )
     st.plotly_chart(fig_trend, use_container_width=True)
 
