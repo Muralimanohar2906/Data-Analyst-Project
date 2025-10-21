@@ -1,10 +1,19 @@
+# Core Web App & Visualization
 streamlit>=1.37,<2.0
-pandas>=2.2,<3.0
 plotly>=5.22,<6.0
-python-dotenv>=1.0,<2.0
-prophet==1.1.5
 requests==2.32.3
-reportlab==4.2.2
-matplotlib==3.9.2
-scikit-learn>=1.3,<2.0
+
+# Data Handling
+pandas>=2.2,<3.0
 numpy>=1.25,<2.0
+
+# Machine Learning
+scikit-learn>=1.3,<2.0
+prophet==1.1.5
+
+# Reporting & Visualization Support
+matplotlib==3.9.2
+reportlab==4.2.2
+
+# Optional (Environment Configurations)
+python-dotenv>=1.0,<2.0

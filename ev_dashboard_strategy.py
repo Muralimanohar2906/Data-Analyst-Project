@@ -15,9 +15,13 @@ from sklearn.preprocessing import MinMaxScaler, PolynomialFeatures
 # ------------------------------------------------
 # Streamlit Setup
 # ------------------------------------------------
-st.set_page_config(page_title="Murali's EV Dashboard", page_icon="⚡", layout="wide")
-
-st.title("⚡ Welcome to Murali's EV Analysis with interactive visualizations")
+st.set_page_config(
+    page_title="Voltura EV Market Strategy", page_icon="⚡", layout="wide"
+)
+st.title("⚡ Voltura Motors India — Intelligent EV Market Strategy Dashboard")
+st.caption(
+    "Auto-Optimized ANN Forecast | Regional & Maker Insights | Transparent Visualization"
+)
 
 
 # ------------------------------------------------
@@ -179,7 +183,7 @@ with tab1:
         )
         st.plotly_chart(fig_map, use_container_width=True)
 
-    st.markdown("###  EV Sales Hierarchy — Region → State → Vehicle Category")
+    st.markdown("### 🌞 EV Sales Hierarchy — Region → State → Vehicle Category")
     df_sun = data.copy()
     df_sun["region"] = df_sun["state"].apply(get_region)
     df_sunburst = df_sun.groupby(
@@ -228,7 +232,6 @@ with tab2:
     top_states = (
         data.groupby("state", as_index=False)["electric_vehicles_sold"]
         .sum()
-        .reset_index()
         .sort_values(by="electric_vehicles_sold", ascending=False)
     )
     fig_top = px.bar(
@@ -266,7 +269,6 @@ with tab3:
     df_trend = (
         data.groupby("fiscal_year", as_index=False)["electric_vehicles_sold"]
         .sum()
-        .reset_index()
         .sort_values("fiscal_year")
     )
 
@@ -292,12 +294,10 @@ with tab3:
             df_trend["fiscal_year"].max() + 1,
             df_trend["fiscal_year"].max() + forecast_horizon + 1,
         ).reshape(-1, 1)
-
         future_scaled = scaler.transform(future_years)
         future_poly = poly.transform(future_scaled)
         forecast = ann.predict(future_poly)
 
-        # --- Historical Trend Chart
         st.subheader("📊 Historical EV Sales Trends")
         fig_trend = px.line(
             df_trend,
@@ -310,22 +310,16 @@ with tab3:
         )
         st.plotly_chart(fig_trend, use_container_width=True)
 
-        # --- Forecast Projection Chart (Fix applied here)
         st.subheader("🔮 Forecasted EV Sales Projection")
-
-        fiscal_years_combined = np.concatenate(
-            [df_trend["fiscal_year"].to_numpy(dtype=float), future_years.flatten()]
-        )
-        evs_combined = np.concatenate([y.astype(float), forecast.astype(float)])
-
         forecast_df = pd.DataFrame(
             {
-                "Fiscal Year": fiscal_years_combined,
-                "EVs Sold": evs_combined,
+                "Fiscal Year": np.concatenate(
+                    [df_trend["fiscal_year"], future_years.flatten()]
+                ),
+                "EVs Sold": np.concatenate([y, forecast]),
                 "Type": ["Historical"] * len(y) + ["Forecast"] * len(forecast),
             }
         )
-
         fig_forecast = px.line(
             forecast_df,
             x="Fiscal Year",
@@ -333,7 +327,6 @@ with tab3:
             color="Type",
             markers=True,
             line_dash="Type",
-            title=f"EV Sales Forecast (Next {forecast_horizon} Years)",
             color_discrete_map={"Historical": "#00B4D8", "Forecast": "magenta"},
         )
         st.plotly_chart(fig_forecast, use_container_width=True)
@@ -342,9 +335,6 @@ with tab3:
         st.success(
             f"📈 Projected Market Growth (Next {forecast_horizon} Years): **{growth_rate:.2f}%**"
         )
-
-    else:
-        st.warning("Not enough data to generate forecast.")
 
 # ============================================================
 # 🌍 REGIONAL INSIGHTS TAB
